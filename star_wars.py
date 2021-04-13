@@ -7,7 +7,7 @@ import json
 
 # =====================================================================================================================
 # ================================================= USER CONTROLS =====================================================
-get_full_jsons = False       # select True to show full json instead of links to subject
+get_full_jsons = True       # select True to show full json instead of links to subject
 
 
 # =====================================================================================================================
@@ -15,6 +15,8 @@ get_full_jsons = False       # select True to show full json instead of links to
 swapi_films_url = 'https://swapi.dev/api/films/'
 swapi_chars_url = 'https://swapi.dev/api/people/'
 swapi_planets_url = 'http://swapi.dev/api/planets/'
+fields_to_delete = ['species', 'vehicles', 'starships']
+port_chosen = 8000
 
 
 # =====================================================================================================================
@@ -71,6 +73,19 @@ def get_styles(file):
     return output
 
 
+def delete_fields(dictionary, unwanted):
+    if unwanted in dictionary:
+        del dictionary[unwanted]
+    for key, value in dictionary.items():
+        if isinstance(value, dict):
+            delete_fields(value, unwanted)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    delete_fields(item, unwanted)
+    return dictionary
+
+
 def get_full_list(category, json_all, pronoun, naming):
     """ returns an html str output of a list of items in a certain category (characters, planets, etc) to display on a
     corresponding endpoint, incl links to a desired subject """
@@ -84,19 +99,19 @@ def get_full_list(category, json_all, pronoun, naming):
     return output
 
 
-def get_specific(spec_name, alt_category, json, naming):
+def get_specific(spec_name, alt_category, json_needed, naming):
     """ returns an html str output that lists the details of a desired subject, including links to subjects that may be
      covered by the API """
     result = {}
     output = get_styles('styles_specific.html')
     output += f'<h1>{spec_name}</h1>'  # h1 stands for header1, </> ends
-    for wanted_json in json:
-        if spec_name == wanted_json[naming]:
+    for wanted_json in json_needed:    # dictionaries within
+        if spec_name == wanted_json[naming]:    # if the spec_name == wanted_json['name']
             result = wanted_json
-            break
+            break   # take the first (and only) result
     for key, value in result.items():
         if value:
-            if not get_full_jsons:
+            if not get_full_jsons:  # if we want to display clickable links
                 if isinstance(value, list):
                     values = []
                     for potential_dict in value:  # value was list of dicts or list of strings
@@ -112,13 +127,17 @@ def get_specific(spec_name, alt_category, json, naming):
                     if key.lower() == 'planets':
                         alt_category = 'planets'
                     values = [f'<a href="/{alt_category}/{x.replace(" ", "%20")}_{alt_category[:-1]}">{x.title()}</a>' 
-                              for x in values]
+                              for x in values]  # display/set up links to corresponding pages
 
                     output += f'<p><b>{str(key).title().replace("_", " ")}</b> --- {", ".join(values)}</p>'
                 else:
                     output += f'<p><b>{str(key).title().replace("_", " ")}</b> --- {str(value).title()}</p>'
             else:
-                output += f'<p><b>{str(key).title().replace("_", " ")}</b> --- {str(value).title()}</p>'
+                for item in fields_to_delete:
+                    result = delete_fields(dictionary=result, unwanted=item)    # delete unnecessary fields
+                output += f'<pre id="json">{json.dumps(result, indent=4)}</pre></p>'
+                print(output)
+                break   # stop at first result as it contains everything, no need to iterate through the rest
 
     output += '<footer><h2><div id="bot"><center><a href="/">Return Home</a></div></h2><center><p>By Ashlen Kurre</p>' \
               '</footer></center></body></html>'  # would have put this into a .html file but time didn't permit
@@ -126,7 +145,7 @@ def get_specific(spec_name, alt_category, json, naming):
 
 
 def main():
-    PORT = 8000
+    PORT = port_chosen
     server = HTTPServer(('', PORT), requestHandler)  # first thing is instance of the server class (first is tuple host
     # name, blank because we're serving on local host. Second is port number). Then it is the request handler
 
@@ -171,7 +190,7 @@ class requestHandler(BaseHTTPRequestHandler):  # takes the webaddress path and d
             planet_name = self.path.split('/')[2].split('_')[0].replace("%20", " ")
             planets_json = replace_keys(returned_json=planets_json, key_input_json=people_json)
             planets_json = replace_keys(returned_json=planets_json, key_input_json=films_json)
-            output = get_specific(spec_name=planet_name, alt_category='characters', json=planets_json, naming='name')
+            output = get_specific(spec_name=planet_name, alt_category='characters', json_needed=planets_json, naming='name')
 
             self.wfile.write(output.encode())
 
@@ -189,7 +208,7 @@ class requestHandler(BaseHTTPRequestHandler):  # takes the webaddress path and d
             char_name = self.path.split('/')[2].split('_')[0].replace("%20", " ")
             people_json = replace_keys(returned_json=people_json, key_input_json=planets_json)
             people_json = replace_keys(returned_json=people_json, key_input_json=films_json)
-            output = get_specific(spec_name=char_name, alt_category='planets', json=people_json, naming='name')
+            output = get_specific(spec_name=char_name, alt_category='planets', json_needed=people_json, naming='name')
 
             self.wfile.write(output.encode())
 
@@ -207,7 +226,7 @@ class requestHandler(BaseHTTPRequestHandler):  # takes the webaddress path and d
             film_name = self.path.split('/')[2].split('_')[0].replace("%20", " ")
             films_json = replace_keys(returned_json=films_json, key_input_json=planets_json)
             films_json = replace_keys(returned_json=films_json, key_input_json=people_json)
-            output = get_specific(spec_name=film_name, alt_category='characters', json=films_json, naming='title')
+            output = get_specific(spec_name=film_name, alt_category='characters', json_needed=films_json, naming='title')
 
             self.wfile.write(output.encode())
 
