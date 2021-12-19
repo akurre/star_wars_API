@@ -1,3 +1,5 @@
+TODO: Markdown - Add all details, API request/response format, etc
+
 Hello and welcome to the Star Wars Guide!
 
 Needed packages for this script: http.server, requests, json.
